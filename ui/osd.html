@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>razerctl OSD</title>
+<style>
+  html, body { margin: 0; background: transparent; overflow: hidden; font-family: "Noto Sans", sans-serif; user-select: none; }
+  #box { position: absolute; right: 0; bottom: 0; width: 340px; box-sizing: border-box; padding: 14px 18px; border-radius: 12px;
+         background: rgba(20, 20, 20, .93); border: 1px solid #333; color: #e6e6e6; opacity: 0; transition: opacity .18s; }
+  #box.on { opacity: 1; }
+  #t { font-size: 17px; margin-bottom: 10px; display: flex; justify-content: space-between; }
+  #t b { color: #44d62c; font-weight: 600; }
+  .row { display: flex; align-items: center; gap: 10px; font-size: 13px; color: #9a9a9a; }
+  .track { position: relative; flex: 1; height: 8px; background: #333; border-radius: 4px; }
+  .fill { position: absolute; top: 0; bottom: 0; background: #44d62c; border-radius: 4px; }
+  .mid { position: absolute; left: 50%; top: -5px; bottom: -5px; width: 2px; margin-left: -1px; background: #ddd; }
+</style>
+</head>
+<body>
+<div id="box"><div id="t"><span id="name"></span><b id="val"></b></div><div class="row"><span id="l"></span><div class="track" id="track"></div><span id="r"></span></div></div>
+<script>
+// Fed by the backend: { title, value, left, right, center (bool), pos (0..1), off (-1..1 when center) }
+const box = document.getElementById('box');
+let hideT;
+window.__TAURI__.event.listen('osd', ({ payload: p }) => {
+  clearTimeout(hideT);
+  if (p.hide) { box.classList.remove('on'); return; }
+  document.getElementById('name').textContent = p.title;
+  document.getElementById('val').textContent = p.value;
+  document.getElementById('l').textContent = p.left;
+  document.getElementById('r').textContent = p.right;
+  const tr = document.getElementById('track');
+  const row = document.querySelector('.row');
+  row.style.display = p.preview ? 'none' : '';
+  box.style.borderColor = p.preview ? '#44d62c' : '#333';
+  if (p.preview) {
+    tr.innerHTML = '';
+  } else if (p.center) {
+    const w = Math.abs(p.off) * 50;
+    tr.innerHTML = `<div class="fill" style="${p.off < 0 ? `right:50%;width:${w}%` : `left:50%;width:${w}%`}"></div><div class="mid"></div>`;
+  } else {
+    tr.innerHTML = `<div class="fill" style="left:0;width:${p.pos * 100}%"></div>`;
+  }
+  box.classList.add('on');
+  if (!p.sticky) hideT = setTimeout(() => box.classList.remove('on'), 1800);
+});
+window.__TAURI__.event.emit('osd-ready');
+</script>
+</body>
+</html>

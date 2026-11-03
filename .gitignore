@@ -1,0 +1,13 @@
+# build output
+src-tauri/target/
+src-tauri/gen/
+__pycache__/
+*.pyc
+# local research / private material (not part of the project)
+audio-enhance/
+synapse-screenshots/
+PLAN.md
+shot.sh
+# proprietary HRIRs must never be committed
+*atmos*.wav
+razer.wav

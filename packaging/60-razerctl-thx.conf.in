@@ -1,0 +1,88 @@
+# Lynapse 2.0 Spatial Audio: 2-channel binaural convolver sink (HRTF stereo widening via PipeWire filter-chain).
+# Installed by install-with-spatial.sh, which fills in the HRIR path and the headset output below.
+# Node names keep the historical "razerctl-thx" names, which the app looks for.
+context.modules = [
+    { name = libpipewire-module-filter-chain
+        flags = [ nofail ]
+        args = {
+            node.description = "Lynapse Spatial Audio"
+            media.name       = "Lynapse Spatial Audio"
+            filter.graph = {
+                nodes = [
+                    { type = builtin label = copy name = copyL }
+                    { type = builtin label = copy name = copyR }
+
+                    # front-left HRIR pair (this ear + cross ear)
+                    { type = builtin label = convolver name = convL_L config = { filename = "@HRIR@" channel = 0 } }
+                    { type = builtin label = convolver name = convL_R config = { filename = "@HRIR@" channel = 1 } }
+                    # front-right HRIR pair (cross ear + this ear)
+                    { type = builtin label = convolver name = convR_R config = { filename = "@HRIR@" channel = 7 } }
+                    { type = builtin label = convolver name = convR_L config = { filename = "@HRIR@" channel = 8 } }
+
+                    # Makeup gain. "Gain N" here is NOT a naive linear
+                    # multiplier on top of unity — each mixer sums two
+                    # already-attenuated convolver paths (this-ear + cross-
+                    # ear HRIR), and that pair's *combined* level at
+                    # "Gain N" = 1.0 measures ~6dB quieter than a raw
+                    # bypass signal to begin with, so "Gain N" = G
+                    # empirically nets out to ~G/2x bypass, not Gx.
+                    # (Measured via parecord capturing the game sink's
+                    # monitor while playing a pink-noise tone through vs
+                    # around the effect, compared with ffmpeg astats/raw
+                    # audioop peak-RMS — first two attempts at this used
+                    # the naive model, 1.4 then 1.96, and both landed
+                    # within ~0.2dB of bypass, i.e. audibly unchanged.)
+                    #
+                    # 4.8 (~+7.6dB net) pushed past the ~5dB of headroom a
+                    # pink-noise bypass tone has before 0dBFS on this graph,
+                    # and confirmed clipping on real broadband/high-crest
+                    # content (thunderstorm sounds) — filter-
+                    # chain's builtin node set has no limiter/compressor
+                    # (only a plain "clamp", which just moves where the
+                    # hard-clip happens rather than smoothing it, so wasn't
+                    # worth adding). Dialed back to 3.17 (~+4.3dB net), the
+                    # earlier value measured to still have ~1dB of headroom
+                    # against that same pink-noise worst case.
+                    { type = builtin label = mixer name = mixL control = { "Gain 1" = 3.17 "Gain 2" = 3.17 } }
+                    { type = builtin label = mixer name = mixR control = { "Gain 1" = 3.17 "Gain 2" = 3.17 } }
+
+                    # Mild warming tilt to match the ~2.5-2.9dB high-mid/air
+                    # roll-off measured against Synapse's spatial audio (same
+                    # capture doc) — a slight high-shelf cut above the
+                    # presence region rather than a boost anywhere.
+                    { type = builtin label = bq_highshelf name = shelfL control = { "Freq" = 2500.0 "Q" = 0.707 "Gain" = -2.5 } }
+                    { type = builtin label = bq_highshelf name = shelfR control = { "Freq" = 2500.0 "Q" = 0.707 "Gain" = -2.5 } }
+                ]
+                links = [
+                    { output = "copyL:Out" input = "convL_L:In" }
+                    { output = "copyL:Out" input = "convL_R:In" }
+                    { output = "copyR:Out" input = "convR_R:In" }
+                    { output = "copyR:Out" input = "convR_L:In" }
+
+                    { output = "convL_L:Out" input = "mixL:In 1" }
+                    { output = "convR_L:Out" input = "mixL:In 2" }
+                    { output = "convL_R:Out" input = "mixR:In 1" }
+                    { output = "convR_R:Out" input = "mixR:In 2" }
+
+                    { output = "mixL:Out" input = "shelfL:In" }
+                    { output = "mixR:Out" input = "shelfR:In" }
+                ]
+                inputs  = [ "copyL:In" "copyR:In" ]
+                outputs = [ "shelfL:Out" "shelfR:Out" ]
+            }
+            capture.props = {
+                node.name      = "effect_input.razerctl-thx"
+                media.class    = Audio/Sink
+                audio.channels = 2
+                audio.position = [ FL FR ]
+            }
+            playback.props = {
+                node.name      = "effect_output.razerctl-thx"
+                node.passive   = true
+                audio.channels = 2
+                audio.position = [ FL FR ]
+                @TARGET_LINE@
+            }
+        }
+    }
+]
