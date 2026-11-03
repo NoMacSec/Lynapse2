@@ -9,6 +9,14 @@ Every other Razer mouse, headset or keyboard gets a basic page with whatever its
 > Not affiliated with, endorsed by or connected to Razer Inc., THX Ltd. or Dolby Laboratories.
 > "Razer" and "Synapse" are trademarks of Razer Inc.
 
+## Screenshots
+
+| Dashboard | Macros |
+|---|---|
+| ![Dashboard](docs/screenshots/dashboard.png) | ![Macros](docs/screenshots/macros.png) |
+| **BlackShark V3 Pro: Sound** | **BlackShark V3 Pro: EQ, game profiles, volume** |
+| ![BlackShark V3 Pro Sound tab](docs/screenshots/headset-sound.png) | ![BlackShark V3 Pro EQ](docs/screenshots/headset-eq.png) |
+
 ## Features
 
 **Razer BlackShark V3 Pro (full support)**
