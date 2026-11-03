@@ -490,7 +490,7 @@ async function generalPage(d) {
       ${has(`${z.p}effect_static`) ? `<div style="display:flex;gap:12px;align-items:center;margin-top:18px">Static colour <input type="color" id="${picker}" value="${col}"></div>` : ''}
       ${naNote('The device cannot report its current effect, so this shows the last one picked here.')}`));
   }
-  return `<div class="banner" style="padding:14px 20px;margin-bottom:20px"><div style="font-size:17px;color:#ddd">Basic support for this device. Want more specific support? Contact <span style="color:var(--green)">ShenaniganJoe</span>.</div></div>
+  return `<div class="banner" style="padding:14px 20px;margin-bottom:20px"><div style="font-size:17px;color:#ddd">Basic support for this device. Want more specific support? Contact <span style="color:var(--green)">Stealthee</span> (github.com/Stealthee/Lynapse2).</div></div>
     <div class="grid2"><div class="col">${cards.filter((_, i) => i % 2 === 0).join('')}</div><div class="col">${cards.filter((_, i) => i % 2 === 1).join('')}</div></div>`;
 }
 for (const k of ['mouse', 'headset', 'keyboard', 'accessory']) PAGES[k]['GENERAL'] = generalPage;

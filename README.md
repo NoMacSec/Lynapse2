@@ -39,7 +39,7 @@ Every other Razer mouse, headset or keyboard gets a basic page with whatever its
 - Mouse: DPI, polling rate, sleep timer, low-battery level
 - Headset: volume and mic volume (PipeWire)
 - Keyboard / mouse lighting: brightness and Off / Static (colour) / Spectrum / Wave / Breathing, per zone
-- Only what the device's driver offers is shown. Want more specific support? Contact ShenaniganJoe (see below).
+- Only what the device's driver offers is shown. Want more specific support? Contact [Stealthee](https://github.com/Stealthee) (open an issue).
 
 **Everywhere**
 - Tray icon whose hover text lists every connected device's battery; optional per-device battery icons in the tray
