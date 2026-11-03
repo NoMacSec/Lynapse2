@@ -17,6 +17,10 @@ Every other Razer mouse, headset or keyboard gets a basic page with whatever its
 | **BlackShark V3 Pro: Sound** | **BlackShark V3 Pro: EQ, game profiles, volume** |
 | ![BlackShark V3 Pro Sound tab](docs/screenshots/headset-sound.png) | ![BlackShark V3 Pro EQ](docs/screenshots/headset-eq.png) |
 
+**System tray:** hover the Lynapse icon for every device's battery; optional per-device battery icons (86, 100).
+
+![Tray hover text and battery icons](docs/screenshots/tray.png)
+
 ## Features
 
 **Razer BlackShark V3 Pro (full support)**
