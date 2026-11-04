@@ -359,7 +359,8 @@ pub fn start(app: AppHandle, headset_dir: Arc<dyn Fn() -> Option<String> + Send 
                 continue;
             };
             let gc = num(&dir, "game_chat_balance").filter(|v| (0..=20).contains(v)).unwrap_or(-1);
-            let st = num(&dir, "v3pro_sidetone").filter(|v| (0..=15).contains(v)).unwrap_or(-1);
+            let sidetone_attr = if Path::new(&dir).join("v3pro_sidetone").exists() { "v3pro_sidetone" } else { "sidetone" };
+            let st = num(&dir, sidetone_attr).filter(|v| (0..=15).contains(v)).unwrap_or(-1);
             let prev = last.replace((dir.clone(), gc, st));
             let Some((pdir, pgc, pst)) = prev else { continue };
             if pdir != dir || app_focused() {

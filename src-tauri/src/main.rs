@@ -64,8 +64,10 @@ struct Device {
     driver: bool,
 }
 
-/// Devices with full pages: Viper V3 Pro (wired 00c0 / dongle 00c1), BlackShark V3 Pro (dongle 0577 / wired 0576).
-const FOCUSED_PIDS: &[&str] = &["00c0", "00c1", "0577", "0576"];
+/// Devices with full pages: Viper V3 Pro (wired 00c0 / dongle 00c1), BlackShark V3 Pro (dongle 0577 / wired 0576),
+/// and BlackShark V3 (wired 0579 / dongle 057a).
+const FOCUSED_PIDS: &[&str] = &["00c0", "00c1", "0579", "057a", "0577", "0576"];
+const BLACKSHARK_V3_PRO_PIDS: &[&str] = &["0577", "0576"];
 
 impl Device {
     /// sysfs dir of the focused device of this kind (the one the Viper/BlackShark-specific features drive)
@@ -845,10 +847,11 @@ fn main() {
             battray::sync(&handle, bat_infos(&devs));
 
             // Audio/Mic Enhancement: put the saved state back once the headset is in PipeWire.
+            // Audio/Mic Enhancement is fitted to the V3 Pro, not the regular V3.
             {
                 let st = state.clone();
                 enhance::restore(move || {
-                    st.devices.lock().iter().find(|d| d.kind == "headset" && d.focused).map(|d| d.name.trim_start_matches("Razer ").replace(' ', "_"))
+                    st.devices.lock().iter().find(|d| d.kind == "headset" && d.focused && d.ifaces.iter().any(|i| BLACKSHARK_V3_PRO_PIDS.contains(&i.pid.as_str()))).map(|d| d.name.trim_start_matches("Razer ").replace(' ', "_"))
                 });
             }
 
@@ -858,7 +861,7 @@ fn main() {
                 let h = handle.clone();
                 let st2 = state.clone();
                 gameprof::start(Arc::new(move || {
-                    st2.devices.lock().iter().find(|d| d.kind == "headset" && d.focused).and_then(|d| {
+                    st2.devices.lock().iter().find(|d| d.kind == "headset" && d.focused && d.ifaces.iter().any(|i| BLACKSHARK_V3_PRO_PIDS.contains(&i.pid.as_str()))).and_then(|d| {
                         d.active.clone().map(|dir| (dir, d.name.trim_start_matches("Razer ").replace(' ', "_")))
                     })
                 }));

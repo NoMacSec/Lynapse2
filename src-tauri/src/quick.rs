@@ -12,14 +12,27 @@ const MIC: [&str; 4] = ["Default", "Flat", "Broadcast", "Esports"]; // slot 1 = 
 const FN: [&str; 4] = ["Game/Chat", "Mic Sidetone", "Footsteps", "Bluetooth Volume"];
 const SLEEP: [(u32, &str); 5] = [(0, "Never"), (15, "15 min"), (30, "30 min"), (45, "45 min"), (60, "60 min")];
 
+fn exists(dir: &str, attr: &str) -> bool {
+    Path::new(dir).join(attr).exists()
+}
+fn attr_name<'a>(dir: &str, attr: &'a str) -> &'a str {
+    if exists(dir, attr) { return attr }
+    match attr {
+        "v3pro_sidetone" if exists(dir, "sidetone") => "sidetone",
+        "v3pro_thx_spatial_audio" if exists(dir, "thx_spatial_audio") => "thx_spatial_audio",
+        "v3pro_ultra_low_latency" if exists(dir, "ultra_low_latency") => "ultra_low_latency",
+        "v3pro_power_save" if exists(dir, "wireless_power_save") => "wireless_power_save",
+        _ => attr,
+    }
+}
+fn has(dir: &str, attr: &str) -> bool {
+    exists(dir, attr_name(dir, attr))
+}
 fn rd(dir: &str, attr: &str) -> Option<String> {
-    fs::read_to_string(Path::new(dir).join(attr)).ok().map(|s| s.trim().to_string()).filter(|s| !s.is_empty() && s != "-1")
+    fs::read_to_string(Path::new(dir).join(attr_name(dir, attr))).ok().map(|s| s.trim().to_string()).filter(|s| !s.is_empty() && s != "-1")
 }
 fn num(dir: &str, attr: &str) -> Option<i64> {
     rd(dir, attr).and_then(|s| s.split_whitespace().next().and_then(|t| t.parse().ok()))
-}
-fn has(dir: &str, attr: &str) -> bool {
-    Path::new(dir).join(attr).exists()
 }
 fn sel(label: &str, on: bool) -> String {
     if on { format!("● {label}") } else { format!("   {label}") }
@@ -113,10 +126,14 @@ pub fn headset_items<R: Runtime>(app: &AppHandle<R>, dir: &str) -> Items<R> {
         let cur = num(dir, "game_chat_balance").filter(|v| (0..=20).contains(v)).unwrap_or(-1);
         push(sub(app, format!("Game-Chat Scroll: {}", if cur >= 0 { gc_label(cur) } else { "?".into() }), (0..=20).step_by(2).map(|i| (format!("q:gc:{i}"), sel(&gc_label(i), i == cur))).collect()));
     }
-    if has(dir, "v3pro_power_save") {
+    if exists(dir, "v3pro_power_save") {
         let cur = num(dir, "v3pro_power_save").unwrap_or(-1);
         let name = SLEEP.iter().find(|(m, _)| *m as i64 == cur).map(|x| x.1).unwrap_or("?");
         push(sub(app, format!("Sleep: {name}"), SLEEP.iter().map(|(m, l)| (format!("q:pwr:{m}"), sel(l, *m as i64 == cur))).collect()));
+    } else if exists(dir, "wireless_power_save") {
+        let cur = num(dir, "wireless_power_save").unwrap_or(-1);
+        let choices = [(15, "15 min"), (30, "30 min"), (45, "45 min"), (60, "60 min")];
+        push(sub(app, format!("Sleep: {}", choices.iter().find(|(m, _)| *m == cur).map(|x| x.1).unwrap_or("?")), choices.iter().map(|(m, l)| (format!("q:pwr:{m}"), sel(l, *m == cur))).collect()));
     }
     v
 }
@@ -126,7 +143,7 @@ pub fn handle<R: Runtime>(app: &AppHandle<R>, dir: &str, id: &str) -> bool {
     let Some(rest) = id.strip_prefix("q:") else { return false };
     let parts: Vec<&str> = rest.split(':').collect();
     let w = |attr: &str, val: String| {
-        let _ = fs::write(Path::new(dir).join(attr), val);
+        let _ = fs::write(Path::new(dir).join(attr_name(dir, attr)), val);
     };
     match parts.as_slice() {
         ["eq", n] => w("v3pro_headphone_eq", n.to_string()),

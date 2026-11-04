@@ -3,7 +3,7 @@
 **Razer device settings for Linux, laid out like Razer Synapse.** A small tray app (Rust + Tauri) that talks to your
 devices through the [openrazer](https://openrazer.github.io) kernel driver and to your audio through PipeWire.
 
-Built and tested with the **Razer BlackShark V3 Pro** (firmware 1.3.3) and **Razer Viper V3 Pro** (firmware 1.14).
+Built and tested with the **Razer BlackShark V3 Pro** (firmware 1.3.3), **Razer BlackShark V3**, and **Razer Viper V3 Pro** (firmware 1.14). *The regular V3's firmware version is not reported by the Linux driver.*
 Every other Razer mouse, headset or keyboard gets a basic page with whatever its driver supports.
 
 > Not affiliated with, endorsed by or connected to Razer Inc., THX Ltd. or Dolby Laboratories.
@@ -32,6 +32,11 @@ Every other Razer mouse, headset or keyboard gets a basic page with whatever its
   mic EQ presets + 10 bands (Default / Esports / Broadcast / Flat), sidetone, audio prompts
 - **Power:** sleep timer, dongle LED mode. **Demo:** a 7.1 test clip to hear Spatial Audio
 - Tray quick settings, scroll-wheel pop-ups (game/chat balance, sidetone), per-game profiles (Spatial Audio + EQ while a game is focused)
+
+**Razer BlackShark V3**
+- 10-band headphone EQ, game/chat balance, mic EQ presets and bands, sidetone, audio prompts, and microphone/headphone volume
+- With the dongle: indicator LED and sleep timer
+- Pro-only ANC, Pro audio enhancement, and per-game profiles are not shown
 
 **Razer Viper V3 Pro (full support)**
 - DPI stages, polling rate up to 8000 Hz on the dongle, smart polling-rate switching for full-screen games

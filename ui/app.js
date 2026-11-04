@@ -26,8 +26,15 @@ function bind(fn) { const id = 'c' + (++uid); binders.push(() => { const el = do
 
 // ---------------- device I/O ----------------
 const dev = () => devices.find(d => d.id === view.tab);
-const has = a => !!dev()?.attrs.includes(a);
-async function rd(attr) { return invoke('read_attr', { path: dev().active, attr }); }
+const isBlackSharkV3 = d => !!d?.ifaces.some(i => i.pid === '0579' || i.pid === '057a');
+const deviceAttr = (d, a) => isBlackSharkV3(d) ? ({
+  v3pro_headphone_eq: 'headphone_eq',
+  v3pro_power_save: 'wireless_power_save',
+  v3pro_sidetone: 'sidetone',
+  v3pro_thx_spatial_audio: 'thx_spatial_audio',
+}[a] || a) : a;
+const has = a => { const d = dev(); return !!d && d.attrs.includes(deviceAttr(d, a)); };
+async function rd(attr) { return invoke('read_attr', { path: dev().active, attr: deviceAttr(dev(), attr) }); }
 // Values the current page was rendered from; polled so changes made on the device itself
 // (headset dial, buttons, other apps) show up without reopening the page.
 let watched = {}, lastWrite = 0, pointerDown = false;
@@ -65,7 +72,7 @@ addEventListener('pointerup', () => { pointerDown = false; lastWrite = Date.now(
 async function wr(attr, v) {
   const d = dev(); if (!d?.active) return toast('Device not connected');
   lastWrite = Date.now();
-  try { await invoke('write_attr', { path: d.active, attr, value: String(v) }); remember(attr, String(v)); lastWrite = Date.now(); }
+  try { await invoke('write_attr', { path: d.active, attr: deviceAttr(d, attr), value: String(v) }); remember(attr, String(v)); lastWrite = Date.now(); }
   catch (e) { toast(e); }
 }
 async function wrBytes(attr, bytes) {
@@ -217,7 +224,10 @@ async function profSnapshot() {
     if (!has(a)) continue;
     let v = await getv(a, null);
     if (v == null || v === '') continue;
-    if (a === 'v3pro_headphone_eq') v = String(parseInt(v) || 0);
+    if (a === 'v3pro_headphone_eq') {
+      const profile = Number.parseInt(v, 10);
+      v = String(profile >= 0 && profile < 5 ? profile : 0);
+    }
     p.attrs[a] = String(v);
   }
   const ds = store[view.tab] || {};
@@ -235,7 +245,11 @@ async function profApply(p) {
   for (const [a, v] of Object.entries(p.attrs || {})) {
     if (!has(a)) continue;
     if (a === 'v3pro_thx_spatial_audio') await setThx(v);
-    else if (a === 'v3pro_headphone_eq') { const c = (p.mem?.eq_custom || {})[v]; await wr(a, c ? `${v} ${c.join(' ')}` : v); remember(a, v); }
+    else if (a === 'v3pro_headphone_eq') {
+      const c = (p.mem?.eq_custom || {})[v] || (isBlackSharkV3(d) ? EQ_PRESETS[+v]?.bands : null);
+      await wr(a, isBlackSharkV3(d) ? `${v} ${(c || EQ_PRESETS[+v].bands).join(' ')}` : c ? `${v} ${c.join(' ')}` : v);
+      remember(a, v);
+    }
     else await wr(a, v);
   }
   if (p.mem?.mic_eq && has('mic_eq')) { // after mic_eq_preset, which resets the bands
@@ -370,7 +384,12 @@ function go(tab, sub) {
   render();
 }
 // Devices without full pages (anything but the Viper V3 Pro / BlackShark V3 Pro) get one basic GENERAL tab.
-function subtabsOf(tab) { const d = devices.find(x => x.id === tab); return d && !d.focused ? ['GENERAL'] : SUBTABS[kindOf(tab)]; }
+function subtabsOf(tab) {
+  const d = devices.find(x => x.id === tab);
+  if (d && !d.focused) return ['GENERAL'];
+  if (d?.kind === 'headset' && isBlackSharkV3(d)) return ['SOUND', 'MIC', 'POWER'];
+  return SUBTABS[kindOf(tab)];
+}
 function curSub() { const t = subtabsOf(view.tab), s = view.sub[view.tab]; return t.includes(s) ? s : t[0]; }
 
 async function render() {
@@ -1091,7 +1110,7 @@ async function gpRender(el) {
 
 PAGES.headset['SOUND'] = async d => {
   await thxCheck(); const thx = await getv('v3pro_thx_spatial_audio', '0');
-  let eq = +(await getv('v3pro_headphone_eq', '0')); if (!(eq >= 0 && eq < 5)) eq = 0;
+  let eq = Number.parseInt(await getv('v3pro_headphone_eq', '0'), 10); if (!(eq >= 0 && eq < 5)) eq = 0;
   const gc = +(await getv('game_chat_balance', '10'));
   const vol = await audioGet('game');
   const volOn = mem('vol_section_on', true) !== false;
@@ -1099,7 +1118,11 @@ PAGES.headset['SOUND'] = async d => {
   // Custom curves per slot live in our store; the driver takes "<slot> b0..b9" (custom) or "<slot>" (factory).
   const custom = () => mem('eq_custom', {});
   const curve = i => custom()[i] || EQ_PRESETS[i].bands;
-  const eqWrite = i => wr('v3pro_headphone_eq', custom()[i] ? `${i} ${custom()[i].join(' ')}` : i);
+  const eqWrite = i => {
+    const bands = custom()[i] || EQ_PRESETS[i].bands;
+    const value = isBlackSharkV3(d) || custom()[i] ? `${i} ${bands.join(' ')}` : i;
+    return wr('v3pro_headphone_eq', value);
+  };
   const drawChart = i => {
     binders = [];
     document.getElementById('eqchart').innerHTML = eqChart(curve(i), { onChange: b => { remember('eq_custom', { ...custom(), [i]: b }); eqWrite(i); resetBtn(i); } });
@@ -1123,10 +1146,10 @@ PAGES.headset['SOUND'] = async d => {
       <div id="eqchart" style="margin-top:20px"></div>
       <div class="bands" id="eqgroups">${bandGroups(eq)}</div>
       <div style="text-align:center;margin-top:20px"><span class="flatbtn" id="${resetId}"><span id="eqreset" style="display:contents">⟲ Reset Current EQ</span></span></div>
-      ${naNote('Drag the dots to customise the selected preset (−6..+6 dB); Reset restores its factory curve. Needs the patched driver (v3pro-eq-bands).')}</div>
+      ${naNote(isBlackSharkV3(d) ? 'Drag the dots to customise the selected preset (−6..+6 dB); Reset restores its factory curve.' : 'Drag the dots to customise the selected preset (−6..+6 dB); Reset restores its factory curve. Needs the patched driver (v3pro-eq-bands).')}</div>
     <div class="grid2">
-      ${card('Game Profiles', `<p>Your preferred Spatial Audio or audio equalizer will load automatically when a game is in the foreground.</p>
-        <div id="${bind(el => gpRender(el))}"></div>`)}
+      ${!isBlackSharkV3(d) ? card('Game Profiles', `<p>Your preferred Spatial Audio or audio equalizer will load automatically when a game is in the foreground.</p>
+        <div id="${bind(el => gpRender(el))}"></div>`) : ''}
       <div class="col">
         <div class="card">${help(TIPS['Volume'])}<h3>Volume ${toggle(volOn, on => {
             remember('vol_section_on', on);
@@ -1247,10 +1270,17 @@ PAGES.headset['MIC'] = async () => {
   </div></div>`;
 };
 
-PAGES.headset['POWER'] = async () => {
+PAGES.headset['POWER'] = async d => {
   const led = await getv('indicator_led', '0');
-  const ps = +(await getv('v3pro_power_save', '30'));
+  const v3 = isBlackSharkV3(d);
+  const ps = +(await getv(v3 ? 'wireless_power_save' : 'v3pro_power_save', '30'));
   let last = ps || +mem('power_save_last', 30);
+  if (v3) return `<div class="grid2">
+    ${card('Indicator LED', `<div style="display:flex;gap:30px"><div style="flex:1"><p>Select what the indicator LED on the dongle will display:</p>
+      ${radios([{ v: 0, t: 'CONNECTION STATUS' }, { v: 1, t: 'BATTERY STATUS' }, { v: 2, t: 'BATTERY WARNING ONLY' }], led, v => wr('indicator_led', v))}</div>${ART.dongle}</div>`, { na: !has('indicator_led') })}
+    ${has('wireless_power_save') ? card('Wireless Power Saving', `<p>Device will turn off after (mins) of inactivity when running on battery.</p>
+      ${btns([15, 30, 45, 60].map(m => ({ v: m, label: m })), ps, v => { last = +v; remember('power_save_last', last); wr('wireless_power_save', v); })}`) : ''}
+  </div>`;
   return `<div class="grid2">
     ${card('Indicator LED', `<div style="display:flex;gap:30px"><div style="flex:1"><p>Select what the indicator LED on the dongle will display:</p>
       ${radios([{ v: 0, t: 'CONNECTION STATUS', s: 'Indicates connection status to the dongle: Green (2.4GHz), White (Simultaneous), or Off (not connected).' }, { v: 1, t: 'BATTERY STATUS', s: 'Gradually changes from Green (100%), Yellow (50%), and Red (8%) depending on the current battery level of your device.' }, { v: 2, t: 'BATTERY WARNING ONLY', s: 'Remains off at all times and only displays blinking red when the device needs charging.' }], led, v => wr('indicator_led', v))}</div>${ART.dongle}</div>`, { na: !has('indicator_led') })}
