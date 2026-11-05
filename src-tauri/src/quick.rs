@@ -45,6 +45,43 @@ fn gc_label(v: i64) -> String {
     }
 }
 
+fn v3_eq_payload(slot: u8, queried: &str) -> Result<String, String> {
+    if slot >= EQ.len() as u8 {
+        return Err("invalid V3 EQ preset".into());
+    }
+    let mut values = queried.split_whitespace();
+    let queried_slot = values.next().and_then(|v| v.parse::<u8>().ok());
+    if queried_slot != Some(slot) {
+        return Err("V3 EQ slot query did not return the requested preset".into());
+    }
+    let bands: Vec<i8> = values
+        .map(|v| v.parse::<i8>().map_err(|e| e.to_string()))
+        .collect::<Result<_, _>>()?;
+    if bands.len() != 10 || bands.iter().any(|v| !(-6..=6).contains(v)) {
+        return Err("V3 EQ slot query returned invalid bands".into());
+    }
+    Ok(format!(
+        "{slot} {}",
+        bands
+            .iter()
+            .map(i8::to_string)
+            .collect::<Vec<_>>()
+            .join(" ")
+    ))
+}
+
+fn select_v3_eq(dir: &str, slot: &str) -> Result<(), String> {
+    let slot = slot.parse::<u8>().map_err(|e| e.to_string())?;
+    if slot >= EQ.len() as u8 {
+        return Err("invalid V3 EQ preset".into());
+    }
+    let eq_slot = Path::new(dir).join("eq_slot");
+    fs::write(&eq_slot, slot.to_string()).map_err(|e| e.to_string())?;
+    let queried = fs::read_to_string(&eq_slot).map_err(|e| e.to_string())?;
+    let payload = v3_eq_payload(slot, &queried)?;
+    fs::write(Path::new(dir).join("headphone_eq"), payload).map_err(|e| e.to_string())
+}
+
 /// Padding after a submenu label so KDE's ▸ arrow isn't jammed against the text (em spaces,
 /// which Qt doesn't trim).
 /// The quick settings sit straight under the headset's line in the main menu, indented under it.
@@ -70,8 +107,15 @@ pub fn headset_items<R: Runtime>(app: &AppHandle<R>, dir: &str) -> Items<R> {
             v.push(x);
         }
     };
-    if has(dir, "v3pro_headphone_eq") {
-        let cur = num(dir, "v3pro_headphone_eq").unwrap_or(-1);
+    let eq_attr = if has(dir, "v3pro_headphone_eq") {
+        Some("v3pro_headphone_eq")
+    } else if has(dir, "headphone_eq") && has(dir, "eq_slot") {
+        Some("headphone_eq")
+    } else {
+        None
+    };
+    if let Some(attr) = eq_attr {
+        let cur = num(dir, attr).unwrap_or(-1);
         let name = EQ.get(cur as usize).copied().unwrap_or(if cur >= 5 { "Custom" } else { "?" });
         push(sub(app, format!("Sound EQ: {name}"), EQ.iter().enumerate().map(|(i, n)| (format!("q:eq:{i}"), sel(n, i as i64 == cur))).collect()));
     }
@@ -146,6 +190,11 @@ pub fn handle<R: Runtime>(app: &AppHandle<R>, dir: &str, id: &str) -> bool {
         let _ = fs::write(Path::new(dir).join(attr_name(dir, attr)), val);
     };
     match parts.as_slice() {
+        ["eq", n] if exists(dir, "headphone_eq") && exists(dir, "eq_slot") => {
+            if let Err(e) = select_v3_eq(dir, n) {
+                eprintln!("V3 EQ: {e}");
+            }
+        }
         ["eq", n] => w("v3pro_headphone_eq", n.to_string()),
         ["mic", n] => w("mic_eq_preset", n.to_string()),
         ["st", n] => w("v3pro_sidetone", n.to_string()),
@@ -182,4 +231,24 @@ pub fn handle<R: Runtime>(app: &AppHandle<R>, dir: &str, id: &str) -> bool {
         _ => return true,
     }
     true
+}
+
+#[cfg(test)]
+mod tests {
+    use super::v3_eq_payload;
+
+    #[test]
+    fn v3_eq_payload_uses_queried_bands() {
+        assert_eq!(
+            v3_eq_payload(2, "2 1 -2 0 3 4 -1 2 0 5 -3").unwrap(),
+            "2 1 -2 0 3 4 -1 2 0 5 -3"
+        );
+    }
+
+    #[test]
+    fn v3_eq_payload_rejects_mismatched_or_invalid_query() {
+        assert!(v3_eq_payload(2, "1 0 0 0 0 0 0 0 0 0 0").is_err());
+        assert!(v3_eq_payload(2, "2 0 0 0 0 0 0 0 0 0").is_err());
+        assert!(v3_eq_payload(5, "5 0 0 0 0 0 0 0 0 0 0").is_err());
+    }
 }
